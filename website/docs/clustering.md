@@ -39,10 +39,33 @@ For the clustering service to run in your application, you need to set  `hoodie.
 Once one of those configurations is set to true, you need to set a schedule by identifying a commit threshold it takes so the clustering plan phase can commence. You can set the commit threshold through the `hoodie.clustering.inline.max.commits`​ or `hoodie.clustering.async.max.commits`​ configuration depending on whether you want to enable inline or async clustering, respectively. 
 
 
+#### Use the below config to set the right scheduling strategy
+
+hoodie.clustering.inline.max.commits​: This configuration controls how frequently the clustering plan is triggered. Use this configuration if you plan on an inline deployment model. The default value is 4. 
+
+hoodie.clustering.async.max.commits​: This configuration controls how frequently the clustering plan is triggered. Use this configuration if you plan on an async deployment model. The default value is 4. 
 
 
+### Plan clustering
+Hudi applies the clustering plan to help decide what file groups should be clustered. The most important parts of planning the clustering phase are:
+- Identifying files eligible for clustering: Depending on the chosen clustering strategy, the scheduling logic will identify the files eligible for clustering.
+- Grouping files eligible for clustering based on specific criteria: Each group is expected to have a data size in multiples of a targetFileSize. Grouping is done as part of the strategy defined in the plan. Additionally, there is an option to cap group size to improve parallelism and avoid shuffling large amounts of data.
 
+There are also two important concepts to understand for this phase:
+- A cluster group: A group of file groups. 
+- Parallelism: The number of spark jobs or threads you want to run for the clustering service.
 
+Hudi applies the planning strategy through the `hoodie.clustering.plan.strategy.class`. First, let's look at different plan strategies that are available with this configuration. 
+
+- `SparkSizeBasedClusteringPlanStrategy`: This is the default strategy. It selects file slices based on the small file limit of base files and creates clustering groups up to the max file size allowed per group. The max size can be specified using the hoodie.clustering.plan.strategy.max.bytes.per.group. This strategy is useful for stitching together medium-sized files into larger ones to reduce files spread across cold partitions.
+
+- `SparkRecentDaysClusteringPlanStrategy`: It looks at previous 'N' days partitions and creates a plan to cluster the 'small' file slices within them. It could be helpful when the workload is predictable, and data is partitioned by time.
+
+- `SparkSelectedPartitionsClusteringPlanStrategy`: This strategy is useful if you want to cluster only specific partitions within a range, no matter how old or new those partitions are. To use this strategy, you need to set additionally two configs (both begin and end partitions are inclusive):
+`Hoodie.clustering.plan.strategy.cluster.begin.partition`
+`Hoodie.clustering.plan.strategy.cluster.end.partition`
+
+All the strategies just described are partition-aware and the latter two are bounded by the size limits of the first strategy.
 
 
 
